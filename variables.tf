@@ -1,25 +1,13 @@
-resource "random_pet" "asg_name" {
-  length = 2
-}
-
-resource "random_string" "launch_name" {
-  length  = 8
-  special = false
-  upper   = false
-}
-
-resource "random_string" "tag_value" {
-  length  = 5
-  upper   = false
-  special = false
-}
+# No resource blocks here – only variables
 
 variable "instance_type" {
-  type    = string
-  default = "t3.micro"
+  description = "EC2 instance type"
+  type        = string
+  default     = "t3.micro"
 }
 
-variable "ami_id" {
-  type    = string
-  default = "ami-0c94855ba95c71c99" # Ubuntu 18.04 us-east-1
+variable "region" {
+  description = "AWS region to deploy to"
+  type        = string
+  default     = "us-east-2"
 }
