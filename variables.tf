@@ -1,13 +1,8 @@
-# No resource blocks here – only variables
-
 variable "instance_type" {
-  description = "EC2 instance type"
-  type        = string
-  default     = "t3.micro"
+  default = "t3.micro"
 }
 
-variable "region" {
-  description = "AWS region to deploy to"
-  type        = string
-  default     = "us-east-2"
+variable "ami_id" {
+  description = "Amazon Machine Image ID"
+  default     = "ami-0c55b159cbfafe1f0" # Use a valid AMI ID for your region
 }
