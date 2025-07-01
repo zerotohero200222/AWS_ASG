@@ -1,3 +1,7 @@
+provider "aws" {
+  region = "us-east-2"
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
@@ -5,13 +9,13 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "example1" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
+  availability_zone       = "us-east-2a"
 }
 
 resource "aws_subnet" "example2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "us-east-1b"
+  availability_zone       = "us-east-2b"
 }
 
 resource "aws_placement_group" "test" {
@@ -20,16 +24,17 @@ resource "aws_placement_group" "test" {
 }
 
 resource "aws_launch_configuration" "foobar" {
-  name          = random_string.launch_name.result
-  image_id      = var.ami_id
-  instance_type = var.instance_type
+  name          = "launch-config"
+  image_id      = "ami-0b8b44ec9a8f90422" # ✅ Valid for us-east-2 (Ubuntu 22.04 LTS)
+  instance_type = "t3.micro"
+
   lifecycle {
     create_before_destroy = true
   }
 }
 
 resource "aws_autoscaling_group" "bar" {
-  name                      = random_pet.asg_name.id
+  name                      = "asg-${random_string.tag_value.result}"
   max_size                  = 2
   min_size                  = 1
   desired_capacity          = 1
@@ -37,8 +42,8 @@ resource "aws_autoscaling_group" "bar" {
   health_check_type         = "EC2"
   placement_group           = aws_placement_group.test.id
   force_delete              = true
-  vpc_zone_identifier       = [aws_subnet.example1.id, aws_subnet.example2.id]
   launch_configuration      = aws_launch_configuration.foobar.name
+  vpc_zone_identifier       = [aws_subnet.example1.id, aws_subnet.example2.id]
 
   tag {
     key                 = "Name"
@@ -50,3 +55,10 @@ resource "aws_autoscaling_group" "bar" {
     delete = "15m"
   }
 }
+
+resource "random_string" "tag_value" {
+  length  = 6
+  special = false
+  upper   = false
+}
+
