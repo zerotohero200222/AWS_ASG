@@ -1,5 +1,5 @@
 variable "instance_type" {
-  default = "t3.micro"
+  default = "c5.large"
 }
 
 variable "ami_id" {
