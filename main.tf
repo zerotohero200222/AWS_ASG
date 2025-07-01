@@ -37,21 +37,29 @@ resource "aws_security_group" "lb_sg" {
   }
 }
 
-resource "aws_launch_configuration" "foobar" {
-  name_prefix   = "foobar-lc-"
+resource "aws_launch_template" "foobar" {
+  name_prefix   = "foobar-lt-"
   image_id      = var.ami_id
   instance_type = var.instance_type
 
-  security_groups = [aws_security_group.lb_sg.id]
+  vpc_security_group_ids = [aws_security_group.lb_sg.id]
 
-  lifecycle {
-    create_before_destroy = true
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "asg-instance-${random_string.tag_value.result}"
+    }
   }
 }
 
 resource "aws_placement_group" "test" {
-  name     = "test"
+  name     = "test-${random_string.tag_value.result}"
   strategy = "cluster"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_autoscaling_group" "bar" {
@@ -62,9 +70,13 @@ resource "aws_autoscaling_group" "bar" {
   health_check_type         = "EC2"
   health_check_grace_period = 300
   force_delete              = true
-  placement_group           = aws_placement_group.test.id
-  launch_configuration      = aws_launch_configuration.foobar.name
+  placement_group           = aws_placement_group.test.name
   vpc_zone_identifier       = [aws_subnet.example.id]
+
+  launch_template {
+    id      = aws_launch_template.foobar.id
+    version = "$Latest"
+  }
 
   tag {
     key                 = "Environment"
@@ -72,3 +84,4 @@ resource "aws_autoscaling_group" "bar" {
     propagate_at_launch = true
   }
 }
+
