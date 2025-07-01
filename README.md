@@ -1,8 +1,4 @@
 # AWS_ASG
-Here’s a complete `README.md` file tailored to your Terraform project, which deploys an Auto Scaling Group with a Placement Group on AWS using GitHub Actions for CI/CD. The destroy step is **intentionally omitted** from the workflow as per your request.
-
----
-
 ## 📘 Terraform AWS Auto Scaling Group Deployment
 
 This project provisions an **Auto Scaling Group** (ASG) on AWS with a **Placement Group** and related infrastructure using **Terraform**. The deployment is automated through a **CI/CD pipeline** with GitHub Actions.
