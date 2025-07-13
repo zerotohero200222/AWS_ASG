@@ -46,7 +46,6 @@ resource "aws_launch_template" "foobar" {
 
   tag_specifications {
     resource_type = "instance"
-
     tags = {
       Name = "asg-instance-${random_string.tag_value.result}"
     }
