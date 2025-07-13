@@ -1,30 +1,27 @@
-name: Terraform Deploy or Destroy
+name: Terraform Plan and Apply (with Cost Estimation & S3 Backend)
 
 on:
-  workflow_dispatch:
-    inputs:
-      action:
-        description: 'Terraform action to perform'
-        required: true
-        default: 'apply'
-        type: choice
-        options:
-          - apply
-          - destroy
+  push:
+    branches:
+      - main
 
 jobs:
-  terraform:
+  plan:
+    name: Terraform Plan (Dev)
     runs-on: ubuntu-latest
-    name: Terraform ${{ github.event.inputs.action }}
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      BUCKET_NAME: terraform-state-pratyushaa-ebs-why2
+
+    defaults:
+      run:
+        working-directory: .
 
     steps:
-      - name: 📥 Checkout Repo
+      - name: 📥 Checkout Code
         uses: actions/checkout@v3
-
-      - name: 🛠 Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
 
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -33,13 +30,100 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: 🪣 Create Backend S3 Bucket if Not Exists
+        run: |
+          if ! aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null; then
+            echo "Creating backend S3 bucket..."
+            CREATE_ARGS="--bucket $BUCKET_NAME --region us-east-1"
+            if [ "us-east-1" != "us-east-1" ]; then
+              CREATE_ARGS="$CREATE_ARGS --create-bucket-configuration LocationConstraint=us-east-1"
+            fi
+            aws s3api create-bucket $CREATE_ARGS
+
+            aws s3api put-bucket-versioning \
+              --bucket $BUCKET_NAME \
+              --versioning-configuration Status=Enabled
+
+            aws s3api put-bucket-encryption \
+              --bucket $BUCKET_NAME \
+              --server-side-encryption-configuration '{
+                "Rules": [
+                  {
+                    "ApplyServerSideEncryptionByDefault": {
+                      "SSEAlgorithm": "AES256"
+                    }
+                  }
+                ]
+              }'
+          else
+            echo "✅ S3 backend bucket already exists."
+          fi
+
+      - name: 🛠 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
       - name: 🌱 Terraform Init
         run: terraform init
 
       - name: 📊 Terraform Plan
-        if: github.event.inputs.action == 'apply'
-        run: terraform plan -out=tfplan
+        run: terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+
+      - name: 💾 Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan
+
+      - name: 💰 Show Cost Summary
+        run: |
+          {
+            echo "## 💰 Estimated Monthly Costs (Dev Environment)"
+            echo ""
+            echo "| Resource       | Quantity | Pricing (approx) | Total Cost |"
+            echo "|----------------|----------|------------------|------------|"
+            echo "| EC2 Instance   | 1        | \$0.0116/hour     | ~\$8/month |"
+            echo "| EBS Volume     | 8 GB     | \$0.08 / GB       | ~\$0.64    |"
+            echo ""
+            echo "**Total Estimate:** ~\$8.64/month"
+          } >> $GITHUB_STEP_SUMMARY
+
+  apply:
+    name: Terraform Apply (Manual Approval)
+    runs-on: ubuntu-latest
+    needs: plan
+    environment:
+      name: dev-approval
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: 🛠 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: 🌱 Terraform Init
+        run: terraform init
+
+      - name: 📥 Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: .
 
       - name: 🚀 Terraform Apply
-        if: github.event.inputs.action == 'apply'
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply tfplan
