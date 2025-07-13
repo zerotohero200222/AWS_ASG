@@ -6,6 +6,21 @@ resource "random_string" "tag_value" {
 
 data "aws_availability_zones" "available" {}
 
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
@@ -39,13 +54,14 @@ resource "aws_security_group" "lb_sg" {
 
 resource "aws_launch_template" "foobar" {
   name_prefix   = "foobar-lt-"
-  image_id      = var.ami_id
+  image_id      = data.aws_ami.amazon_linux.id
   instance_type = var.instance_type
 
   vpc_security_group_ids = [aws_security_group.lb_sg.id]
 
   tag_specifications {
     resource_type = "instance"
+
     tags = {
       Name = "asg-instance-${random_string.tag_value.result}"
     }
@@ -63,9 +79,9 @@ resource "aws_placement_group" "test" {
 
 resource "aws_autoscaling_group" "bar" {
   name                      = "foobar3-terraform-test"
-  max_size                  = 2
-  min_size                  = 1
-  desired_capacity          = 1
+  max_size                  = var.max_size
+  min_size                  = var.min_size
+  desired_capacity          = var.desired_capacity
   health_check_type         = "EC2"
   health_check_grace_period = 300
   force_delete              = true
