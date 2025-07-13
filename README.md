@@ -1,107 +1,115 @@
-# AWS_ASG
-## 📘 Terraform AWS Auto Scaling Group Deployment
+# 🚀 AWS Auto Scaling Group Infrastructure with Terraform & GitHub Actions
 
-This project provisions an **Auto Scaling Group** (ASG) on AWS with a **Placement Group** and related infrastructure using **Terraform**. The deployment is automated through a **CI/CD pipeline** with GitHub Actions.
-
----
-
-### ✅ Features
-
-* Creates a VPC, subnets, route tables
-* Creates a Placement Group
-* Deploys an Auto Scaling Group using Launch Template
-* Automatically applies configuration using GitHub Actions
-* Access logging via S3 for Load Balancer (if included)
-* Configurable via input variables
+This repository automates the deployment of an AWS Auto Scaling Group (ASG) with Terraform, backed by an S3 remote backend and CI/CD enabled via GitHub Actions. It supports multiple environments (`dev`, `uat`, and `prod`) using environment-specific variable files (`.tfvars`).
 
 ---
 
-### 🧪 Prerequisites
+---
 
-* AWS CLI configured
-* Terraform CLI installed (>= v1.2)
-* GitHub repository with secrets:
+## 🧩 Components Deployed
 
-  * `AWS_ACCESS_KEY_ID`
-  * `AWS_SECRET_ACCESS_KEY`
-  * (optional) `AWS_REGION` (default: `us-east-2`)
+* **VPC** – A new isolated virtual network for your resources.
+* **Subnet** – A public subnet inside the VPC.
+* **Security Group** – Allows HTTP traffic on port 80.
+* **Launch Template** – Launch configuration for EC2 instances.
+* **Placement Group** – For clustering instances (used with supported instance types).
+* **Auto Scaling Group (ASG)** – Manages scaling policies for EC2 instances.
 
 ---
 
-### 🚀 Setup & Usage
+## 🔄 Environments
 
-#### 1. Clone the repository
+You can deploy the infrastructure to the following environments using `.tfvars` files:
 
-```bash
-git clone https://github.com/your-username/your-repo.git
-cd your-repo
-```
+| Environment | Instance Type | AMI ID                  | AZ           | VPC CIDR      | Subnet CIDR   |
+| ----------- | ------------- | ----------------------- | ------------ | ------------- | ------------- |
+| dev         | `t3.micro`    | `ami-xxxxxxxxxxxxxxxxx` | `us-east-1a` | `10.0.0.0/16` | `10.0.1.0/24` |
+| uat         | `t3.medium`   | `ami-xxxxxxxxxxxxxxxxx` | `us-east-1b` | `10.0.0.0/16` | `10.0.2.0/24` |
+| prod        | `t3.large`    | `ami-xxxxxxxxxxxxxxxxx` | `us-east-1c` | `10.0.0.0/16` | `10.0.3.0/24` |
 
-#### 2. Initialize Terraform
-
-```bash
-terraform init
-```
-
-#### 3. Plan and Apply
-
-```bash
-terraform plan -out=tfplan
-terraform apply tfplan
-```
-
-> 💡 This manually deploys the infrastructure.
+Modify the AMI IDs as per the AWS region you are deploying to.
 
 ---
 
-### 🤖 CI/CD Pipeline with GitHub Actions
+## ☁️ Remote Backend
 
-A GitHub Actions workflow is set up to automatically deploy your Terraform code on push to `main`.
+Terraform state is managed in a secure, versioned, and encrypted S3 bucket. If the bucket doesn't exist, GitHub Actions automatically creates it with:
 
-**Path:** `.github/workflows/terraform-deploy.yml`
-
-**Triggers:**
-
-* Push to `main` branch
-
-**Steps:**
-
-* Checkout code
-* Configure AWS credentials
-* Terraform init → validate → plan → apply
-
-✅ No destroy step is included in this workflow.
+* **Versioning** enabled
+* **Server-side encryption (AES256)** enabled
 
 ---
 
-### 📦 Outputs
+## ⚙️ GitHub Actions CI/CD
 
-The following output values will be displayed after apply:
+A GitHub Actions workflow automatically runs on pushes to the `main` branch:
 
-* `asg_name`: Name of the Auto Scaling Group
-* `placement_group`: Name of the Placement Group
+### Plan Job
+
+* Initializes Terraform
+* Creates the backend bucket (if missing)
+* Generates a plan using the appropriate `.tfvars` file
+* Uploads the plan artifact
+* Adds a cost estimation summary to the GitHub UI
+
+### Apply Job
+
+* Requires manual approval (`dev-approval`)
+* Downloads and applies the previously generated plan
+
+---
+
+## 🔐 Secrets Configuration
+
+In your repository's **GitHub secrets**, configure:
+
+* `AWS_ACCESS_KEY_ID`
+* `AWS_SECRET_ACCESS_KEY`
+
+These are injected into the workflow to authenticate Terraform with AWS.
 
 ---
 
-### ⚙️ Sample Variable File (`variables.tf`)
+## ✅ Prerequisites
 
-```hcl
-variable "instance_type" {
-  description = "EC2 instance type"
-  default     = "c5.large"
-}
-```
+* AWS account with access to create EC2, VPC, S3, etc.
+* Terraform version ≥ 1.5.x
+* GitHub repository with configured secrets
+* IAM user/role with permissions for:
+
+  * EC2 (including ASG, LT, PG, SG, Subnets, etc.)
+  * S3 (create/manage buckets)
+  * IAM (if needed for more advanced ASG scenarios)
+
+---
+
+## 🧪 How to Use
+
+1. **Fork or Clone the repository.**
+2. **Update AMI IDs** in `*.tfvars` according to your region.
+3. **Commit and push** changes to the `main` branch.
+4. **GitHub Actions** will:
+
+   * Create a backend S3 bucket (if not already created)
+   * Run `terraform plan`
+   * Wait for manual approval before applying
+5. **Approve** the `Terraform Apply` stage in GitHub Actions UI.
+6. View the **outputs** to retrieve resources like VPC ID, Subnet ID, ASG name, etc.
 
 ---
 
-### 🛠️ Notes
+## 🧼 Clean-Up
 
-* Ensure the instance type supports Placement Group strategy (e.g., `c5.large`).
-* Destroy can be done **manually** using:
+To remove the deployed infrastructure:
 
-  ```bash
-  terraform destroy
-  ```
+* Trigger a manual **destroy** workflow (if implemented)
+* Or run `terraform destroy -var-file=environments/dev.tfvars` locally
 
 ---
+
+## 📌 Notes
+
+* Ensure you’re not exceeding AWS service limits (e.g., number of VPCs or EC2 quota).
+* Placement groups require compatible instance types (e.g., `c5.large`, `m5.large`). Avoid unsupported types like `t2.micro` with `cluster` placement strategy.
+* Cost estimation is static and based on AWS pricing at the time of writing.
 
